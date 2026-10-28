@@ -3,6 +3,7 @@ from PIL import Image
 import customtkinter as ctk
 from .ciclos_caminos import GraphLabApp
 from .algoritmo_disktra import AppDijkstraTK
+from .app_generador_grafos import iniciar_app_grafos
 
 
 ctk.set_appearance_mode("Dark") 
@@ -56,9 +57,9 @@ class MainWindow(ctk.CTk):
         self.logo_label.pack(pady=(8, 20), padx=20, anchor="w")
 
         nav_buttons = [
-            ("Generar Grafo", self.mostrar_dashboard),
-            ("Euler y Hamilton", self.abrir_nuevo_grafo),
-            ("Algoritmo de Dijkstra", self.cargar_grafo),
+            ("Generador de  Grafos", self.generador_grafos),
+            ("Ciclos y Caminos", self.ciclos_y_camminos_E_H),
+            ("Algoritmo de Dijkstra", self.algoritmo_Dijkstra),
         ]
 
         for text, comando in nav_buttons:
@@ -196,18 +197,17 @@ class MainWindow(ctk.CTk):
         lbl_sub = ctk.CTkLabel(card, text=subtitle, font=ctk.CTkFont(size=11), text_color="#FFEDD5", wraplength=220, justify="left")
         lbl_sub.pack(anchor="w", padx=20, pady=(5, 15))
 
-    def mostrar_dashboard(self):
-        print("Navegando al Dashboard principal")
+    def generador_grafos(self):
+        iniciar_app_grafos()
+        print("Abriendo generador de grafos")
 
-    def abrir_nuevo_grafo(self):
+    def ciclos_y_camminos_E_H(self):
         ventana = GraphLabApp(self)
         ventana.lift()
         ventana.focus()
+        print("Acción: Abriendo programa de ciclos y caminos de euler y hamilton")
 
-    def cargar_grafo(self):
+    def algoritmo_Dijkstra(self):
         app = AppDijkstraTK()
         app.mainloop()
-        print("Acción: Algoritmo de Dijkstra ejecutado y ventana cerrada")
-
-    def mostrar_ayuda(self):
-        print("Acción: Mostrar ayuda sobre ciclos y caminos de Hamilton y Euler")
+        print("Acción: Abriendo programa de algoritmo de Dijkstra")
