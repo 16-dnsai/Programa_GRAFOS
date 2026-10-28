@@ -156,18 +156,108 @@ DATOS_INICIALES = {
     ]
 }
 
+
+class FilterCombobox(ttk.Entry):
+    """Buscador con lista flotante emergente que filtra en tiempo real sin perder foco."""
+    def __init__(self, master=None, width=None, **kw):
+        super().__init__(master, width=width, **kw)
+        self._completion_list = []
+        self.popup = None
+        self.listbox = None
+
+        self.bind('<KeyRelease>', self._on_keyrelease)
+        self.bind('<FocusOut>', self._on_focus_out)
+        self.bind('<Down>', self._on_arrow_down)
+
+    def set_completion_list(self, completion_list):
+        self._completion_list = sorted(completion_list)
+
+    def set(self, value):
+        self.delete(0, tk.END)
+        self.insert(0, value)
+
+    def _on_keyrelease(self, event):
+        if event.keysym in ("Up", "Down", "Return", "Escape", "Tab", "FocusOut"):
+            if event.keysym == "Escape":
+                self._close_popup()
+            elif event.keysym == "Return" and self.popup:
+                self._select_current_listbox_item()
+            return
+
+        texto = self.get().strip().lower()
+
+        if not texto:
+            self._close_popup()
+            return
+
+        filtrados = [item for item in self._completion_list if texto in item.lower()]
+
+        if filtrados:
+            self._show_popup(filtrados)
+        else:
+            self._close_popup()
+
+    def _show_popup(self, items):
+        if not self.popup or not self.popup.winfo_exists():
+            self.popup = tk.Toplevel(self)
+            self.popup.wm_overrideredirect(True)
+            self.popup.attributes("-topmost", True)
+
+            x = self.winfo_rootx()
+            y = self.winfo_rooty() + self.winfo_height()
+            w = self.winfo_width()
+            self.popup.geometry(f"{w}x120+{x}+{y}")
+
+            self.listbox = tk.Listbox(
+                self.popup, bg="#1e293b", fg="#ffffff", selectbackground="#0284c7",
+                selectforeground="#ffffff", highlightthickness=0, borderwidth=1, relief="solid", font=("Segoe UI", 9)
+            )
+            self.listbox.pack(fill=tk.BOTH, expand=True)
+
+            self.listbox.bind("<ButtonRelease-1>", self._on_listbox_click)
+
+        self.listbox.delete(0, tk.END)
+        for item in items:
+            self.listbox.insert(tk.END, item)
+
+    def _close_popup(self):
+        if self.popup and self.popup.winfo_exists():
+            self.popup.destroy()
+            self.popup = None
+            self.listbox = None
+
+    def _select_current_listbox_item(self):
+        if self.listbox and self.listbox.curselection():
+            index = self.listbox.curselection()[0]
+            val = self.listbox.get(index)
+            self.set(val)
+            self._close_popup()
+
+    def _on_listbox_click(self, event):
+        self._select_current_listbox_item()
+
+    def _on_arrow_down(self, event):
+        if self.listbox:
+            self.listbox.focus_set()
+            self.listbox.selection_clear(0, tk.END)
+            self.listbox.selection_set(0)
+            self.listbox.activate(0)
+
+    def _on_focus_out(self, event):
+        self.after(150, self._close_popup)
+
+
 class AppDijkstraTK(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Proyecto Final - Algoritmo de Dijkstra (45 Municipios)")
-        self.geometry("1280x780")
-        self.configure(bg="#121212")
+        self.title("Algoritmo de Dijkstra - Mapa Vial de Guatemala")
+        self.geometry("1300x820")
+        self.configure(bg="#0f172a")
 
         self.grafo = GrafoDijkstra(es_dirigido=False)
         self.camino_resaltado = []
         self.nodo_dragged = None
 
-        # Banderas visuales para la animación paso a paso
         self.nodo_explorando = None
         self.aristas_exploradas = set()
         self.aristas_descartadas = set()
@@ -184,85 +274,106 @@ class AppDijkstraTK(tk.Tk):
         self.style = ttk.Style()
         self.style.theme_use("clam")
 
-        PANEL_BG = "#1e1e1e"
-        TEXT_LIGHT = "#e0e0e0"
-        BORDER_COL = "#2c2c2c"
+        BG_DARK = "#0f172a"
+        CARD_BG = "#1e293b"
+        TEXT_MAIN = "#f8fafc"
+        TEXT_MUTED = "#94a3b8"
+        ACCENT_CYAN = "#38bdf8"
+        ACCENT_ORANGE = "#f97316"
 
-        self.style.configure(".", background=PANEL_BG, foreground=TEXT_LIGHT, font=("Helvetica", 9))
-        self.style.configure("TFrame", background=PANEL_BG)
-        self.style.configure("TLabelframe", background=PANEL_BG, foreground="#00e676", bordercolor=BORDER_COL)
-        self.style.configure("TLabelframe.Label", background=PANEL_BG, foreground="#00e676", font=("Helvetica", 9, "bold"))
-        self.style.configure("TLabel", background=PANEL_BG, foreground=TEXT_LIGHT)
-        self.style.configure("TButton", background="#2d2d2d", foreground="#ffffff", bordercolor=BORDER_COL, focuscolor="none")
-        self.style.map("TButton", background=[("active", "#3d3d3d"), ("pressed", "#4d4d4d")])
-        self.style.configure("TEntry", fieldbackground="#2b2b2b", foreground="#ffffff", insertcolor="#ffffff")
-        self.style.configure("TCombobox", fieldbackground="#2b2b2b", background="#3d3d3d", foreground="#ffffff", arrowcolor="#ffffff")
-        self.style.map("TCombobox", fieldbackground=[("readonly", "#2b2b2b")], foreground=[("readonly", "#ffffff")])
+        self.style.configure(".", background=BG_DARK, foreground=TEXT_MAIN, font=("Segoe UI", 9))
+        self.style.configure("TFrame", background=BG_DARK)
+        self.style.configure("Card.TFrame", background=CARD_BG)
+        
+        self.style.configure("Header.TLabel", background=CARD_BG, foreground=TEXT_MAIN, font=("Segoe UI", 15, "bold"))
+        self.style.configure("SubHeader.TLabel", background=CARD_BG, foreground=TEXT_MUTED, font=("Segoe UI", 8, "italic"))
+        self.style.configure("CardTitle.TLabel", background=CARD_BG, foreground=ACCENT_CYAN, font=("Segoe UI", 10, "bold"))
+
+        self.style.configure("Primary.TButton", background="#334155", foreground="#ffffff", font=("Segoe UI", 9, "bold"), borderwidth=0, focuscolor="none")
+        self.style.map("Primary.TButton", background=[("active", "#475569"), ("pressed", "#1e293b")])
+
+        self.style.configure("Orange.TButton", background=ACCENT_ORANGE, foreground="#ffffff", font=("Segoe UI", 9, "bold"), borderwidth=0, focuscolor="none")
+        self.style.map("Orange.TButton", background=[("active", "#ea580c"), ("pressed", "#c2410c")])
+
+        self.style.configure("TEntry", fieldbackground="#0f172a", foreground="#ffffff", insertcolor="#ffffff")
+
+        self.style.configure("Treeview", background="#0f172a", foreground="#ffffff", fieldbackground="#0f172a", rowheight=24)
+        self.style.configure("Treeview.Heading", background="#1e293b", foreground=ACCENT_CYAN, font=("Segoe UI", 9, "bold"))
+        self.style.map("Treeview", background=[("selected", "#0284c7")], foreground=[("selected", "#ffffff")])
 
     def crear_interfaz(self):
         main_pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        main_pane.pack(fill=tk.BOTH, expand=True)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
 
-        left_frame = ttk.Frame(main_pane, padding=10, width=320)
-        main_pane.add(left_frame, weight=0)
+        left_card = ttk.Frame(main_pane, style="Card.TFrame", padding=15, width=340)
+        main_pane.add(left_card, weight=0)
 
-        ttk.Label(left_frame, text="Algoritmo de Dijkstra", font=("Helvetica", 14, "bold"), foreground="#00e676").pack(anchor="w", pady=2)
-        ttk.Label(left_frame, text="Análisis de Rutas Mínimas (Aristas <= 80 km)", font=("Helvetica", 8, "italic"), foreground="#a0a0a0").pack(anchor="w", pady=(0, 10))
+        ttk.Label(left_card, text="Dijkstra Engine", style="Header.TLabel").pack(anchor="w")
+        ttk.Label(left_card, text="Analisis de rutas viales", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 12))
 
-        f_consulta = ttk.LabelFrame(left_frame, text=" 1. Consulta de Ruta ", padding=8)
-        f_consulta.pack(fill=tk.X, pady=4)
+        f_consulta = ttk.Frame(left_card, style="Card.TFrame")
+        f_consulta.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(f_consulta, text="Origen:").grid(row=0, column=0, sticky="w", pady=2)
-        self.cb_origen = ttk.Combobox(f_consulta, state="readonly")
-        self.cb_origen.grid(row=0, column=1, sticky="ew", pady=2)
+        ttk.Label(f_consulta, text="1. Consulta de Ruta", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 6))
 
-        ttk.Label(f_consulta, text="Destino:").grid(row=1, column=0, sticky="w", pady=2)
-        self.cb_destino = ttk.Combobox(f_consulta, state="readonly")
-        self.cb_destino.grid(row=1, column=1, sticky="ew", pady=2)
+        ttk.Label(f_consulta, text="Municipio Origen:", background="#1e293b", foreground="#94a3b8").pack(anchor="w")
+        self.cb_origen = FilterCombobox(f_consulta)
+        self.cb_origen.pack(fill=tk.X, pady=(2, 6))
 
-        f_consulta.columnconfigure(1, weight=1)
+        ttk.Label(f_consulta, text="Municipio Destino:", background="#1e293b", foreground="#94a3b8").pack(anchor="w")
+        self.cb_destino = FilterCombobox(f_consulta)
+        self.cb_destino.pack(fill=tk.X, pady=(2, 8))
 
-        btn_calc = ttk.Button(f_consulta, text="Calcular Ruta Mínima", command=self.ejecutar_consulta)
-        btn_calc.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 2))
+        btn_calc = ttk.Button(f_consulta, text="Calcular Ruta Minima", style="Primary.TButton", command=self.ejecutar_consulta)
+        btn_calc.pack(fill=tk.X, pady=2)
 
-        btn_anim = ttk.Button(f_consulta, text="Animar Paso a Paso", command=self.iniciar_animacion)
-        btn_anim.grid(row=3, column=0, columnspan=2, sticky="ew", pady=2)
+        btn_anim = ttk.Button(f_consulta, text="Animar Paso a Paso", style="Orange.TButton", command=self.iniciar_animacion)
+        btn_anim.pack(fill=tk.X, pady=2)
 
-        f_edit = ttk.LabelFrame(left_frame, text=" 2. Registrar/Editar ", padding=8)
-        f_edit.pack(fill=tk.X, pady=4)
+        ttk.Separator(left_card, orient='horizontal').pack(fill='x', pady=10)
 
-        ttk.Label(f_edit, text="Municipio:").grid(row=0, column=0, sticky="w")
-        self.txt_nodo = ttk.Entry(f_edit, width=12)
-        self.txt_nodo.grid(row=0, column=1, sticky="ew")
-        ttk.Button(f_edit, text="+ Nodo", command=self.gui_add_nodo).grid(row=0, column=2, padx=2)
+        f_edit = ttk.Frame(left_card, style="Card.TFrame")
+        f_edit.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(f_edit, text="Arista (U-V):").grid(row=1, column=0, sticky="w", pady=4)
-        self.txt_u = ttk.Entry(f_edit, width=5)
-        self.txt_u.grid(row=1, column=1, sticky="w")
-        self.txt_v = ttk.Entry(f_edit, width=5)
-        self.txt_v.grid(row=1, column=1, sticky="e")
+        ttk.Label(f_edit, text="2. Registrar o Editar", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 6))
 
-        ttk.Label(f_edit, text="Peso:").grid(row=2, column=0, sticky="w")
-        self.txt_peso = ttk.Entry(f_edit, width=12)
-        self.txt_peso.grid(row=2, column=1, sticky="ew")
-        ttk.Button(f_edit, text="+ Conexión", command=self.gui_add_arista).grid(row=2, column=2, padx=2)
+        ttk.Label(f_edit, text="Nuevo Municipio:", background="#1e293b", foreground="#94a3b8").pack(anchor="w")
+        f_node = ttk.Frame(f_edit, style="Card.TFrame")
+        f_node.pack(fill=tk.X, pady=(2, 8))
+        self.txt_nodo = ttk.Entry(f_node)
+        self.txt_nodo.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
+        ttk.Button(f_node, text="+ Nodo", style="Primary.TButton", command=self.gui_add_nodo).pack(side=tk.RIGHT)
 
-        f_edit.columnconfigure(1, weight=1)
+        ttk.Label(f_edit, text="Conectar Municipios (U - V):", background="#1e293b", foreground="#94a3b8").pack(anchor="w")
+        f_edge_uv = ttk.Frame(f_edit, style="Card.TFrame")
+        f_edge_uv.pack(fill=tk.X, pady=(2, 4))
+        self.cb_u = FilterCombobox(f_edge_uv, width=12)
+        self.cb_u.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
+        self.cb_v = FilterCombobox(f_edge_uv, width=12)
+        self.cb_v.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
 
-        f_zoom = ttk.LabelFrame(left_frame, text=" Controles de Vista ", padding=8)
-        f_zoom.pack(fill=tk.X, pady=4)
+        f_edge_w = ttk.Frame(f_edit, style="Card.TFrame")
+        f_edge_w.pack(fill=tk.X, pady=(2, 4))
+        self.txt_peso = ttk.Entry(f_edge_w)
+        self.txt_peso.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
+        ttk.Button(f_edge_w, text="+ Conexion", style="Primary.TButton", command=self.gui_add_arista).pack(side=tk.RIGHT)
+
+        ttk.Separator(left_card, orient='horizontal').pack(fill='x', pady=10)
+
+        f_zoom = ttk.Frame(left_card, style="Card.TFrame")
+        f_zoom.pack(fill=tk.X)
         
-        btn_box = ttk.Frame(f_zoom)
+        btn_box = ttk.Frame(f_zoom, style="Card.TFrame")
         btn_box.pack(fill=tk.X)
-        ttk.Button(btn_box, text="Zoom +", command=self.zoom_in).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
-        ttk.Button(btn_box, text="Zoom -", command=self.zoom_out).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
-        ttk.Button(btn_box, text="Reset Vista", command=self.reset_vista).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(btn_box, text="Zoom +", style="Primary.TButton", command=self.zoom_in).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(btn_box, text="Zoom -", style="Primary.TButton", command=self.zoom_out).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(btn_box, text="Reset", style="Primary.TButton", command=self.reset_vista).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
 
-        right_frame = ttk.Frame(main_pane, padding=10)
-        main_pane.add(right_frame, weight=1)
+        right_container = ttk.Frame(main_pane)
+        main_pane.add(right_container, weight=1)
 
-        self.canvas = tk.Canvas(right_frame, bg="#181818", highlightthickness=1, highlightbackground="#2c2c2c")
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(right_container, bg="#0b0f19", highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         self.canvas.bind("<ButtonPress-1>", self.on_click)
         self.canvas.bind("<B1-Motion>", self.on_drag)
@@ -272,11 +383,46 @@ class AppDijkstraTK(tk.Tk):
         self.canvas.bind("<ButtonPress-3>", self.start_pan)
         self.canvas.bind("<B3-Motion>", self.do_pan)
 
-        f_log = ttk.LabelFrame(right_frame, text=" Resultados de la Consulta ", padding=4)
-        f_log.pack(fill=tk.X, pady=(6, 0))
+        f_res_card = ttk.Frame(right_container, style="Card.TFrame", padding=12)
+        f_res_card.pack(fill=tk.X)
 
-        self.txt_log = tk.Text(f_log, height=6, font=("Consolas", 9), bg="#1e1e1e", fg="#00e676", insertbackground="#ffffff", highlightthickness=0)
-        self.txt_log.pack(fill=tk.BOTH, expand=True)
+        f_top_res = ttk.Frame(f_res_card, style="Card.TFrame")
+        f_top_res.pack(fill=tk.X, pady=(0, 6))
+
+        ttk.Label(f_top_res, text="Resumen de Resultados", style="CardTitle.TLabel").pack(side=tk.LEFT)
+        
+        self.lbl_costo_card = tk.Label(f_top_res, text="Costo Total: -- km", font=("Segoe UI", 10, "bold"), bg="#10b981", fg="#ffffff", padx=10, pady=2)
+        self.lbl_costo_card.pack(side=tk.RIGHT)
+
+        f_sec = ttk.Frame(f_res_card, style="Card.TFrame")
+        f_sec.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(f_sec, text="Ruta:", font=("Segoe UI", 9, "bold"), background="#1e293b", foreground="#38bdf8").pack(side=tk.LEFT, padx=(0, 5))
+        self.lbl_ruta_str = ttk.Label(f_sec, text="Seleccione un origen y destino para calcular...", style="SubHeader.TLabel")
+        self.lbl_ruta_str.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        f_table = ttk.Frame(f_res_card, style="Card.TFrame")
+        f_table.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("tramo", "origen", "destino", "distancia", "acumulado")
+        self.tree_tramos = ttk.Treeview(f_table, columns=columns, show="headings", height=4)
+        
+        self.tree_tramos.heading("tramo", text="Tramo")
+        self.tree_tramos.heading("origen", text="Origen")
+        self.tree_tramos.heading("destino", text="Destino")
+        self.tree_tramos.heading("distancia", text="Distancia (km)")
+        self.tree_tramos.heading("acumulado", text="Suma Acumulada")
+
+        self.tree_tramos.column("tramo", width=70, anchor="center")
+        self.tree_tramos.column("origen", width=150, anchor="w")
+        self.tree_tramos.column("destino", width=150, anchor="w")
+        self.tree_tramos.column("distancia", width=100, anchor="center")
+        self.tree_tramos.column("acumulado", width=120, anchor="center")
+
+        tree_scroll = ttk.Scrollbar(f_table, orient="vertical", command=self.tree_tramos.yview)
+        self.tree_tramos.configure(yscrollcommand=tree_scroll.set)
+
+        self.tree_tramos.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
     def to_canvas_coords(self, x, y):
         return x * self.zoom_scale + self.pan_x, y * self.zoom_scale + self.pan_y
@@ -326,12 +472,11 @@ class AppDijkstraTK(tk.Tk):
 
         self.actualizar_combos()
         self.redibujar()
-        self.log(f"Grafo cargado exitosamente con {len(self.grafo.adj)} municipios de Guatemala.")
 
     def actualizar_combos(self):
         nodos = sorted(list(self.grafo.adj.keys()))
-        self.cb_origen['values'] = nodos
-        self.cb_destino['values'] = nodos
+        for cb in (self.cb_origen, self.cb_destino, self.cb_u, self.cb_v):
+            cb.set_completion_list(nodos)
 
         if nodos:
             if not self.cb_origen.get() or self.cb_origen.get() not in nodos:
@@ -342,41 +487,39 @@ class AppDijkstraTK(tk.Tk):
     def gui_add_nodo(self):
         nombre = self.txt_nodo.get().strip()
         if not nombre:
-            messagebox.showwarning("Entrada Vacía", "Ingrese un nombre para el nuevo municipio.")
+            messagebox.showwarning("Entrada Vacia", "Ingrese un nombre para el nuevo municipio.")
             return
 
         if self.grafo.agregar_vertice(nombre, x=200.0, y=200.0):
             self.actualizar_combos()
             self.redibujar()
             self.txt_nodo.delete(0, tk.END)
-            self.log(f"Municipio registrado: '{nombre}'")
         else:
             messagebox.showerror("Duplicado", f"El municipio '{nombre}' ya existe.")
 
     def gui_add_arista(self):
-        u = self.txt_u.get().strip()
-        v = self.txt_v.get().strip()
+        u = self.cb_u.get().strip()
+        v = self.cb_v.get().strip()
         p_str = self.txt_peso.get().strip()
 
         if not u or not v or not p_str:
-            messagebox.showwarning("Vacío", "Complete Origen (U), Destino (V) y Peso.")
+            messagebox.showwarning("Vacio", "Complete Origen (U), Destino (V) y Peso.")
             return
 
         try:
             peso = float(p_str)
         except ValueError:
-            messagebox.showerror("Peso Inválido", "El peso debe ser un número válido.")
+            messagebox.showerror("Peso Invalido", "El peso debe ser un numero valido.")
             return
 
         if peso < 0:
-            messagebox.showerror("Peso Inválido", "No se permiten pesos negativos en el algoritmo de Dijkstra.")
-            self.log(f"Rechazado intento de ingresar peso negativo ({peso}).")
+            messagebox.showerror("Peso Invalido", "No se permiten pesos negativos en Dijkstra.")
             return
 
         self.grafo.agregar_arista(u, v, peso)
         self.actualizar_combos()
         self.redibujar()
-        self.log(f"Conexión registrada/actualizada: {u} <-> {v} (Peso: {peso} km)")
+        self.txt_peso.delete(0, tk.END)
 
     def obtener_peso_arista(self, u, v):
         for vecino, peso in self.grafo.adj.get(u, []):
@@ -385,8 +528,8 @@ class AppDijkstraTK(tk.Tk):
         return 0
 
     def ejecutar_consulta(self):
-        origen = self.cb_origen.get()
-        destino = self.cb_destino.get()
+        origen = self.cb_origen.get().strip()
+        destino = self.cb_destino.get().strip()
 
         if not origen or not destino:
             return
@@ -397,24 +540,22 @@ class AppDijkstraTK(tk.Tk):
 
         distancias, previos = self.grafo.resolver_dijkstra(origen)
 
-        self.txt_log.delete("1.0", tk.END)
+        for item in self.tree_tramos.get_children():
+            self.tree_tramos.delete(item)
 
         if origen == destino:
             self.camino_resaltado = [origen]
             self.redibujar()
-            self.log(f"=== RESULTADO DE CONSULTA: {origen} ➔ {destino} ===")
-            self.log(" Costo Total Mínimo: 0.0 km")
-            self.log("• El origen y el destino son el mismo municipio.")
-            self.log(f"• Secuencia de Vértices (1):\n   {origen}")
+            self.lbl_costo_card.config(text="Costo Total: 0.0 km", bg="#10b981")
+            self.lbl_ruta_str.config(text=f"{origen} (Mismo punto de origen y destino)")
             return
 
         if distancias.get(destino, float('inf')) == float('inf'):
             self.camino_resaltado = []
             self.redibujar()
-            self.log(f"=== RESULTADO DE CONSULTA: {origen} ➔ {destino} ===")
-            self.log(f" EL VÉRTICE DESTINO '{destino}' NO ES ALCANZABLE DESDE '{origen}'.")
-            self.log("• No existe ninguna secuencia de conexiones disponible.")
-            messagebox.showwarning("Vértice No Alcanzable", f"No existe ninguna ruta conectada entre '{origen}' y '{destino}'.")
+            self.lbl_costo_card.config(text="Sin Ruta", bg="#ef4444")
+            self.lbl_ruta_str.config(text=f"No existe conexion entre '{origen}' y '{destino}'.")
+            messagebox.showwarning("Vertice No Alcanzable", f"No existe ninguna ruta conectada entre '{origen}' y '{destino}'.")
             return
 
         camino = self.grafo.reconstruir_camino(previos, origen, destino)
@@ -423,22 +564,22 @@ class AppDijkstraTK(tk.Tk):
         self.camino_resaltado = camino
         self.redibujar()
 
-        self.log(f"=== RESULTADO DE CONSULTA: {origen} ➔ {destino} ===")
-        self.log(f" Costo Total Mínimo: {costo_total:.1f} km")
-        self.log(f"- Secuencia de Vértices ({len(camino)}):")
-        self.log("   " + " ➔ ".join(camino))
-        self.log("\nDesglose de tramos:")
+        self.lbl_costo_card.config(text=f"Costo Total: {costo_total:.1f} km", bg="#10b981")
+        self.lbl_ruta_str.config(text=" -> ".join(camino))
 
+        suma_acumulada = 0.0
         for i in range(len(camino) - 1):
             u_i = camino[i]
             v_i = camino[i+1]
             w_i = self.obtener_peso_arista(u_i, v_i)
-            self.log(f"   • {u_i} ➔ {v_i}: {w_i} km")
+            suma_acumulada += w_i
+            self.tree_tramos.insert("", "end", values=(
+                f"Tramo {i+1}", u_i, v_i, f"{w_i:.1f} km", f"{suma_acumulada:.1f} km"
+            ))
 
-    # METODOS DE ANIMACION PASO A PASO
     def iniciar_animacion(self):
-        origen = self.cb_origen.get()
-        destino = self.cb_destino.get()
+        origen = self.cb_origen.get().strip()
+        destino = self.cb_destino.get().strip()
 
         if not origen or not destino or origen == destino:
             return
@@ -462,7 +603,7 @@ class AppDijkstraTK(tk.Tk):
 
             self.nodo_explorando = u
             self.after(0, self.redibujar)
-            time.sleep(0.3)
+            time.sleep(0.20)
 
             if u == destino:
                 break
@@ -476,18 +617,16 @@ class AppDijkstraTK(tk.Tk):
                     prev[vecino] = u
                     heapq.heappush(pq, (dist[vecino], vecino))
                     self.after(0, self.redibujar)
-                    time.sleep(0.15)
+                    time.sleep(0.10)
                 else:
                     self.aristas_descartadas.add(clave_arista)
                     self.after(0, self.redibujar)
-                    time.sleep(0.1)
+                    time.sleep(0.06)
 
         self.nodo_explorando = None
         self.aristas_exploradas.clear()
         self.aristas_descartadas.clear()
         
-        camino = self.grafo.reconstruir_camino(prev, origen, destino)
-        self.camino_resaltado = camino
         self.after(0, self.ejecutar_consulta)
 
     def redibujar(self):
@@ -509,7 +648,7 @@ class AppDijkstraTK(tk.Tk):
 
                 es_explorada = clave in self.aristas_exploradas
                 es_descartada = clave in self.aristas_descartadas
-                
+
                 es_camino = False
                 if len(self.camino_resaltado) > 1:
                     for i in range(len(self.camino_resaltado) - 1):
@@ -518,48 +657,44 @@ class AppDijkstraTK(tk.Tk):
                             es_camino = True
                             break
 
-                # Jerarquía visual de colores
                 if es_camino:
-                    color = "#00e676"  # Verde (Ruta Definitiva)
-                    ancho = max(1.0, 3.5 * self.zoom_scale)
+                    color = "#00ff87"
+                    ancho = max(2.0, 4.5 * self.zoom_scale)
                 elif es_descartada:
-                    color = "#ff1744"  # Rojo (Ruta Descartada)
-                    ancho = max(1.0, 2.0 * self.zoom_scale)
+                    color = "#ef4444"
+                    ancho = max(1.5, 2.5 * self.zoom_scale)
                 elif es_explorada:
-                    color = "#ffab00"  # Amarillo/Naranja (En Evaluación)
-                    ancho = max(1.0, 2.5 * self.zoom_scale)
+                    color = "#f97316"
+                    ancho = max(1.5, 3.0 * self.zoom_scale)
                 else:
-                    color = "#424242"  # Gris (Sin Visitar)
-                    ancho = max(1.0, 1.2 * self.zoom_scale)
+                    color = "#475569"
+                    ancho = max(1.2, 2.0 * self.zoom_scale)
 
                 self.canvas.create_line(x1, y1, x2, y2, fill=color, width=ancho)
 
                 mx, my = (x1 + x2)/2, (y1 + y2)/2
-                self.canvas.create_rectangle(mx-11, my-5, mx+11, my+5, fill="#212121", outline="#333333")
-                self.canvas.create_text(mx, my, text=f"{peso}k", font=("Helvetica", max(5, int(6.5 * self.zoom_scale)), "bold"), fill="#b0bec5")
+                self.canvas.create_rectangle(mx-12, my-6, mx+12, my+6, fill="#1e293b", outline="#38bdf8")
+                self.canvas.create_text(mx, my, text=f"{peso}k", font=("Segoe UI", max(6, int(7.0 * self.zoom_scale)), "bold"), fill="#f8fafc")
 
-        r = max(4.0, 10.0 * self.zoom_scale)
+        r = max(6.0, 11.0 * self.zoom_scale)
         for nodo, (x_r, y_r) in self.grafo.posiciones.items():
             x, y = self.to_canvas_coords(x_r, y_r)
 
-            fill_col = "#263238"
-            outline_col = "#80deea"
+            fill_col = "#1e293b"
+            outline_col = "#38bdf8"
+            ancho_borde = 2
 
             if nodo == self.nodo_explorando:
-                fill_col = "#ff6d00"   # Naranja (Nodo Activo)
-                outline_col = "#ffd600"
+                fill_col = "#f97316"; outline_col = "#ffedd5"; ancho_borde = 3
             elif nodo in self.camino_resaltado:
-                fill_col = "#1b5e20"   # Verde
-                outline_col = "#00e676"
+                fill_col = "#00ff87"; outline_col = "#ffffff"; ancho_borde = 3
                 if nodo == self.camino_resaltado[0]:
-                    fill_col = "#b71c1c"  # Rojo (Origen)
-                    outline_col = "#ff5252"
+                    fill_col = "#0284c7"; outline_col = "#e0f2fe"
                 elif nodo == self.camino_resaltado[-1]:
-                    fill_col = "#f57f17"  # Amarillo (Destino)
-                    outline_col = "#ffeb3b"
+                    fill_col = "#f97316"; outline_col = "#ffedd5"
 
-            self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=fill_col, outline=outline_col, width=2, tags=("nodo", nodo))
-            self.canvas.create_text(x, y - r - 6, text=nodo, font=("Helvetica", max(5, int(7.5 * self.zoom_scale)), "bold"), fill="#e0e0e0")
+            self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=fill_col, outline=outline_col, width=ancho_borde, tags=("nodo", nodo))
+            self.canvas.create_text(x, y - r - 8, text=nodo, font=("Segoe UI", max(6, int(8.0 * self.zoom_scale)), "bold"), fill="#ffffff")
 
     def on_click(self, event):
         item = self.canvas.find_withtag("current")
@@ -577,10 +712,6 @@ class AppDijkstraTK(tk.Tk):
             self.grafo.posiciones[self.nodo_dragged] = (rx, ry)
             self.redibujar()
 
-    def log(self, msg):
-        self.txt_log.insert(tk.END, msg + "\n")
-        self.txt_log.see(tk.END)
-
-# if __name__ == "__main__":
-#     app = AppDijkstraTK()
-#     app.mainloop()
+if __name__ == "__main__":
+    app = AppDijkstraTK()
+    app.mainloop()
