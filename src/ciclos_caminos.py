@@ -1208,11 +1208,15 @@ class LabeledSlider(ctk.CTkFrame):
         self.title.pack(side="left")
         self.val = ctk.CTkLabel(top, text="", font=F(12, "bold"), text_color=UI_ORANGE)
         self.val.pack(side="right")
+        #icono
+        self.iconbitmap("img/logo_umg.ico")
         self.slider = ctk.CTkSlider(self, from_=lo, to=hi, number_of_steps=max(1, int(round((hi - lo) / step))),
                                     command=self._moved, progress_color=UI_ORANGE, button_color=UI_NAVY,
                                     button_hover_color="#0f172a")
         self.slider.pack(fill="x", pady=(4, 0))
         self.set(value)
+
+        
 
     def _snap(self, raw: float):
         v = self.lo + round((raw - self.lo) / self.step) * self.step
